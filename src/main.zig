@@ -30,6 +30,10 @@ const DOWN_KEYS = &[_]rl.KeyboardKey {
     rl.KeyboardKey.KEY_S
 };
 
+const QUIT_KEYS = &[_]rl.KeyboardKey {
+    rl.KeyboardKey.KEY_Q
+};
+
 fn isLeftDown() bool {
     return isKeyDown(LEFT_KEYS);
 }
@@ -46,17 +50,20 @@ fn isDownDown() bool {
     return isKeyDown(DOWN_KEYS);
 }
 
-const SPEED = 10.0;
+fn isQuitKeyDown() bool {
+    return isKeyDown(QUIT_KEYS);
+}
 
+const SPEED = 200.0;
 
-const Entity = struct {
+const Transform = struct {
     pos: rl.Vector2,
     rot: f32,
 
     const Self = @This();
 
     pub fn init() Self {
-        return Entity {
+        return Transform {
             .pos = rl.Vector2 {
                 .x = 0.0,
                 .y = 0.0,
@@ -68,35 +75,90 @@ const Entity = struct {
     pub fn move(self: *Self, by: rl.Vector2) void {
         self.pos = self.pos.add(by);
     }
+};
+
+const Id = usize;
+
+const Drawable = *const fn(world: *World, id: Id) void;
+
+fn drawRectangle(world: *World, id: Id) void {
+    const trans = world.transforms[id];
+    const rect = rl.Rectangle {
+        .x = trans.pos.x,
+        .y = trans.pos.y,
+        .width = 40,
+        .height = 40,
+    };
+    rl.DrawRectanglePro(rect, rl.Vector2 { .x = 20.0, .y = 20.0 }, trans.rot, rl.RED);
+}
+
+const NUM_ENTITIES = 1024;
+
+const Entity = struct {
+    transform: usize,
+    drawable: usize,
+};
+
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+const allocator = gpa.allocator();
+
+const World = struct {
+    id_counter: usize = 0,
+    transforms: [NUM_ENTITIES]Transform = undefined,
+    drawables: [NUM_ENTITIES]Drawable = undefined,
+
+    players: std.ArrayList(Id) = std.ArrayList(Id).init(allocator),
+
+    const Self = @This();
+
+    pub fn init() Self {
+        return Self {};
+    }
+
+    pub fn drawPlayers(self: *Self) void {
+        for (self.players.items) |player_id| {
+            self.drawables[player_id](self, player_id);
+        }
+    }
 
     pub fn draw(self: *Self) void {
-        const rect = rl.Rectangle {
-            .x = self.pos.x,
-            .y = self.pos.y,
-            .width = 40,
-            .height = 40,
-        };
-        rl.DrawRectanglePro(rect, rl.Vector2 { .x = 20.0, .y = 20.0 }, self.rot, rl.RED);
+        self.drawPlayers();
+    }
+
+
+    pub fn getTransform(self: *Self, id: Id) *Transform {
+        return &self.transforms[id];
+    }
+
+    pub fn newPlayer(self: *Self) !Id {
+        const id = self.id_counter;
+        self.id_counter += 1;
+
+        self.transforms[id] = Transform.init();
+        self.drawables[id] = drawRectangle;
+
+        try self.players.append(id);
+
+        return id;
     }
 };
 
-const World = struct {
-    entities: [1024]Entity,
-};
+fn shouldQuit() bool {
+    return rl.WindowShouldClose() or isQuitKeyDown();
+}
 
-pub fn main() void {
+pub fn main() !void {
     rl.InitWindow(800, 800, "hello world!");
     rl.SetConfigFlags(rl.ConfigFlags{ .FLAG_WINDOW_RESIZABLE = true });
     rl.SetTargetFPS(60);
 
     defer rl.CloseWindow();
 
-    var entity = Entity.init();
+    var world = World.init();
+    var player_id = try world.newPlayer();
 
-    while (!rl.WindowShouldClose()) {
-        rl.BeginDrawing();
-        defer rl.EndDrawing();
-
+    while (!shouldQuit()) {
+        var dt = rl.GetFrameTime();
         var dir = rl.Vector2 { .x = 0, .y = 0 };
         if (isLeftDown()) {
             dir.x -= 1;
@@ -111,12 +173,16 @@ pub fn main() void {
             dir.y += 1;
         }
 
-        entity.rot += SPEED;
+        var transform = world.getTransform(player_id);
+        transform.rot += SPEED * dt;
+        transform.move(dir.scale(SPEED * dt));
 
+        rl.BeginDrawing();
         rl.ClearBackground(rl.BLACK);
         rl.DrawFPS(10, 10);
 
-        entity.move(dir.scale(SPEED));
-        entity.draw();
+        world.draw();
+
+        rl.EndDrawing();
     }
 }
