@@ -115,7 +115,33 @@ const World = struct {
         return Self {};
     }
 
-    pub fn drawPlayers(self: *Self) void {
+    fn updatePlayers(self: *Self, dt: f32) !void {
+        var dir = rl.Vector2 { .x = 0, .y = 0 };
+        if (isLeftDown()) {
+            dir.x -= 1;
+        }
+        if (isRightDown()) {
+            dir.x += 1;
+        }
+        if (isUpDown()) {
+            dir.y -= 1;
+        }
+        if (isDownDown()) {
+            dir.y += 1;
+        }
+
+        for (self.players.items) |player_id| {
+            var transform = self.getTransform(player_id);
+            transform.rot += SPEED * dt;
+            transform.move(dir.scale(SPEED * dt));
+        }
+    }
+
+    pub fn update(self: *Self, dt: f32) !void {
+        try self.updatePlayers(dt);
+    }
+
+    fn drawPlayers(self: *Self) void {
         for (self.players.items) |player_id| {
             self.drawables[player_id](self, player_id);
         }
@@ -125,16 +151,17 @@ const World = struct {
         self.drawPlayers();
     }
 
-
     pub fn getTransform(self: *Self, id: Id) *Transform {
         return &self.transforms[id];
     }
 
-    pub fn newPlayer(self: *Self) !Id {
+    pub fn newPlayer(self: *Self, pos: rl.Vector2) !Id {
         const id = self.id_counter;
         self.id_counter += 1;
 
-        self.transforms[id] = Transform.init();
+        var trans = Transform.init();
+        trans.pos = pos;
+        self.transforms[id] = trans;
         self.drawables[id] = drawRectangle;
 
         try self.players.append(id);
@@ -155,27 +182,14 @@ pub fn main() !void {
     defer rl.CloseWindow();
 
     var world = World.init();
-    var player_id = try world.newPlayer();
+    _ = try world.newPlayer(rl.Vector2 { .x = 100, .y = 100 });
+    _ = try world.newPlayer(rl.Vector2 { .x = 200, .y = 200 });
+    _ = try world.newPlayer(rl.Vector2 { .x = 300, .y = 300 });
 
     while (!shouldQuit()) {
         var dt = rl.GetFrameTime();
-        var dir = rl.Vector2 { .x = 0, .y = 0 };
-        if (isLeftDown()) {
-            dir.x -= 1;
-        }
-        if (isRightDown()) {
-            dir.x += 1;
-        }
-        if (isUpDown()) {
-            dir.y -= 1;
-        }
-        if (isDownDown()) {
-            dir.y += 1;
-        }
 
-        var transform = world.getTransform(player_id);
-        transform.rot += SPEED * dt;
-        transform.move(dir.scale(SPEED * dt));
+        try world.update(dt);
 
         rl.BeginDrawing();
         rl.ClearBackground(rl.BLACK);
