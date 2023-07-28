@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const raylib = @import("./raylib/build.zig");
+
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
 // runner.
@@ -24,12 +26,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const raylib = b.dependency("raylib", .{
-        .target = target,
-        .optimize = optimize,
-    });
-
-    exe.addModule("raylib", raylib.module("raylib"));
+    raylib.addTo(b, exe, target, optimize);
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
