@@ -1,3 +1,4 @@
+const std = @import("std");
 const rl = @import("raylib");
 
 fn isKeyDown(comptime keys: []const rl.KeyboardKey) bool {
@@ -47,6 +48,42 @@ fn isDownDown() bool {
 
 const SPEED = 10.0;
 
+
+const Entity = struct {
+    pos: rl.Vector2,
+    rot: f32,
+
+    const Self = @This();
+
+    pub fn init() Self {
+        return Entity {
+            .pos = rl.Vector2 {
+                .x = 0.0,
+                .y = 0.0,
+            },
+            .rot = rl.PI / 4.0,
+        };
+    }
+
+    pub fn move(self: *Self, by: rl.Vector2) void {
+        self.pos = self.pos.add(by);
+    }
+
+    pub fn draw(self: *Self) void {
+        const rect = rl.Rectangle {
+            .x = self.pos.x,
+            .y = self.pos.y,
+            .width = 40,
+            .height = 40,
+        };
+        rl.DrawRectanglePro(rect, rl.Vector2 { .x = 20.0, .y = 20.0 }, self.rot, rl.RED);
+    }
+};
+
+const World = struct {
+    entities: [1024]Entity,
+};
+
 pub fn main() void {
     rl.InitWindow(800, 800, "hello world!");
     rl.SetConfigFlags(rl.ConfigFlags{ .FLAG_WINDOW_RESIZABLE = true });
@@ -54,7 +91,7 @@ pub fn main() void {
 
     defer rl.CloseWindow();
 
-    var pos = rl.Vector2 { .x = 0, .y = 0 };
+    var entity = Entity.init();
 
     while (!rl.WindowShouldClose()) {
         rl.BeginDrawing();
@@ -74,10 +111,12 @@ pub fn main() void {
             dir.y += 1;
         }
 
+        entity.rot += SPEED;
+
         rl.ClearBackground(rl.BLACK);
         rl.DrawFPS(10, 10);
 
-        pos = pos.add(dir.normalize().scale(SPEED));
-        rl.DrawText("hello world!", @intFromFloat(pos.x), @intFromFloat(pos.y), 20, rl.YELLOW);
+        entity.move(dir.scale(SPEED));
+        entity.draw();
     }
 }
